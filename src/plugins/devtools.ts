@@ -1,6 +1,6 @@
-import type { Store } from '../store'
+import type { Store } from '../lib/store'
 import { setupDevtoolsPlugin } from '@vue/devtools-api'
-import { forEachValue } from '../util'
+import { forEachValue } from '../lib/util'
 
 const LAW_RAW_LABEL = 'Raw'
 const INSPECTOR_ID = 'vuex'

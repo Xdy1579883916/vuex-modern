@@ -1,4 +1,4 @@
-import type { Module } from './module/module'
+import type { Module } from '../module/module'
 
 export const mapState = normalizeNamespace((namespace: string, states: any) => {
   const res: Record<string, any> = {}

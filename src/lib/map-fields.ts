@@ -1,4 +1,4 @@
-import { Store } from './store'
+import type { Store } from './store'
 
 export function getField(state: any): (path: string) => any {
   return (path: string) => {
@@ -32,7 +32,7 @@ export function mapFields(namespace: string | any, fields?: any): any {
     res[key] = {
       get(this: any) {
         const store = this.$store as Store<any>
-        const getterPath = namespace + 'getField'
+        const getterPath = `${namespace}getField`
         const getter = store.getters[getterPath]
         if (process.env.NODE_ENV !== 'production' && !getter) {
           console.warn(`[vuex-modern] mapFields: getter "${getterPath}" not found.`)
@@ -42,17 +42,19 @@ export function mapFields(namespace: string | any, fields?: any): any {
       },
       set(this: any, val: any) {
         const store = this.$store as Store<any>
-        const mutationPath = namespace + 'updateField'
+        const mutationPath = `${namespace}updateField`
         store.commit(mutationPath, { path: value, value: val })
-      }
+      },
     }
   })
 
   return res
 }
 
-export const createHelpers = (namespace: string) => ({
+export function createHelpers(namespace: string) {
+  return {
     mapFields: mapFields.bind(null, namespace),
     getField,
-    updateField
-})
+    updateField,
+  }
+}

@@ -1,5 +1,5 @@
-import type { ActionContext } from '../store'
-import { forEachValue } from '../util'
+import type { ActionContext } from '../lib/store'
+import { forEachValue } from '../lib/util'
 
 // Base type for the raw module shape provided by user
 export interface RawModule<S = any, R = any> {

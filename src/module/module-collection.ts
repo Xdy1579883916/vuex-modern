@@ -1,5 +1,5 @@
 import type { RawModule } from './module'
-import { forEachValue } from '../util'
+import { forEachValue } from '../lib/util'
 import { Module } from './module'
 
 export class ModuleCollection<R> {

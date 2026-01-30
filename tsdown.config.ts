@@ -8,6 +8,10 @@ export default defineConfig({
   format: ['esm'],
   clean: true,
   dts: true,
+  define: {
+    __DEV__: '__DEV__',
+    __VUE_PROD_DEVTOOLS__: '__VUE_PROD_DEVTOOLS__',
+  },
   external: [
     ...Object.keys(pkg.peerDependencies || {}),
     // /^vue/,

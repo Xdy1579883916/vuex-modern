@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { forEachValue, isObject, isPromise } from '../../src/util'
+import { forEachValue, isObject, isPromise } from '../../src/lib/util'
 
 // Missing functions in our util.ts implementation need to be added or mocked
 // Vuex official utils: find, deepCopy, forEachValue, isObject, isPromise, assert

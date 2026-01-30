@@ -1,9 +1,9 @@
 import type { App, EffectScope } from 'vue'
-import type { Module, RawModule } from './module/module'
+import type { Module, RawModule } from '../module/module'
 import { computed, effectScope, reactive, watch } from 'vue'
+import { ModuleCollection } from '../module/module-collection'
+import { useDevtools } from '../plugins/devtools'
 import { storeKey } from './inject'
-import { ModuleCollection } from './module/module-collection'
-import { useDevtools } from './plugins/devtools'
 import { assert, forEachValue, isObject, isPromise } from './util'
 
 export type VuexPlugin<S> = (store: Store<S>) => any
@@ -108,7 +108,7 @@ export class Store<S = any> {
 
     const devtools = this._devtools !== undefined
       ? this._devtools
-      : process.env.NODE_ENV !== 'production'
+      : __DEV__ || __VUE_PROD_DEVTOOLS__
 
     if (devtools) {
       useDevtools(app, this)

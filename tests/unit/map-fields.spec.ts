@@ -1,27 +1,26 @@
-import { describe, it, expect } from 'vitest'
-import { createStore, getField, updateField, mapFields } from '../../src/index'
+import { describe, expect, it } from 'vitest'
+import { createStore, getField, mapFields, updateField } from '../../src/index'
 import { mount } from '../helpers'
-import { reactive } from 'vue'
 
 describe('mapFields', () => {
   it('should get and set field', () => {
     const store = createStore({
       state: {
         fieldA: 'a',
-        fieldB: 'b'
+        fieldB: 'b',
       },
       getters: {
-        getField
+        getField,
       },
       mutations: {
-        updateField
-      }
+        updateField,
+      },
     })
 
     const vm = mount(store, {
       computed: {
-        ...mapFields(['fieldA', 'fieldB'])
-      }
+        ...mapFields(['fieldA', 'fieldB']),
+      },
     }) as any
 
     expect(vm.fieldA).toBe('a')
@@ -37,36 +36,36 @@ describe('mapFields', () => {
       state: {
         user: {
           name: 'John',
-          email: 'john@example.com'
-        }
+          email: 'john@example.com',
+        },
       },
       getters: {
-        getField
+        getField,
       },
       mutations: {
-        updateField
-      }
+        updateField,
+      },
     })
 
     const vm = mount(store, {
       computed: {
-        ...mapFields(['user.name'])
-      }
+        ...mapFields(['user.name']),
+      },
     }) as any
 
     expect(vm['user.name']).toBe('John') // Wait, mapFields array uses path as key?
 
     // mapFields(['user.name']) creates computed property "user.name" which is invalid JS identifier for this access?
-    // Actually standard mapFields behavior: 
+    // Actually standard mapFields behavior:
     // If array ['field'], key is 'field'.
-    // If array ['a.b'], key is 'a.b'? 
+    // If array ['a.b'], key is 'a.b'?
     // vuex-map-fields documentation says:
     // mapFields(['user.firstName']) -> computed['user.firstName']? No, usually not.
     // Usually you use object syntax for renaming: mapFields({ firstName: 'user.firstName' })
     // Let's check array behavior implementation in my code:
     // fields.map(key => [key, key]) -> key is 'user.name'.
     // So vm['user.name'] is correct.
-    
+
     vm['user.name'] = 'Doe'
     expect(store.state.user.name).toBe('Doe')
   })
@@ -75,23 +74,23 @@ describe('mapFields', () => {
     const store = createStore({
       state: {
         user: {
-          name: 'John'
-        }
+          name: 'John',
+        },
       },
       getters: {
-        getField
+        getField,
       },
       mutations: {
-        updateField
-      }
+        updateField,
+      },
     })
 
     const vm = mount(store, {
       computed: {
         ...mapFields({
-          userName: 'user.name'
-        })
-      }
+          userName: 'user.name',
+        }),
+      },
     }) as any
 
     expect(vm.userName).toBe('John')
@@ -105,26 +104,26 @@ describe('mapFields', () => {
         foo: {
           namespaced: true,
           state: {
-            field: 'foo'
+            field: 'foo',
           },
           getters: {
-            getField
+            getField,
           },
           mutations: {
-            updateField
-          }
-        }
-      }
+            updateField,
+          },
+        },
+      },
     })
 
     const vm = mount(store, {
       computed: {
-        ...mapFields('foo', ['field'])
-      }
+        ...mapFields('foo', ['field']),
+      },
     }) as any
 
     expect(vm.field).toBe('foo')
     vm.field = 'bar'
-    expect(store.state.foo.field).toBe('bar')
+    expect((store as any).state.foo.field).toBe('bar')
   })
 })

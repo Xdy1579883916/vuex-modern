@@ -1,14 +1,14 @@
-import type { StoreOptions } from './store'
-import { createNamespacedHelpers, mapActions, mapGetters, mapMutations, mapState } from './helpers'
-import { storeKey, useStore } from './inject'
+import type { StoreOptions } from './lib/store'
+import { createNamespacedHelpers, mapActions, mapGetters, mapMutations, mapState } from './lib/helpers'
+import { storeKey, useStore } from './lib/inject'
+import { Store } from './lib/store'
 import { Module } from './module/module'
-import { Store } from './store'
 
-export * from './helpers'
-export * from './inject'
+export * from './lib/helpers'
+export * from './lib/inject'
+export * from './lib/map-fields'
+export * from './lib/store'
 export * from './module/module'
-export * from './map-fields'
-export * from './store'
 
 export function createStore<S>(options: StoreOptions<S>) {
   return new Store(options)
