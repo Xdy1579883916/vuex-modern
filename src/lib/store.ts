@@ -106,9 +106,7 @@ export class Store<S = any> {
     app.provide(injectKey || storeKey, this)
     app.config.globalProperties.$store = this
 
-    const devtools = this._devtools !== undefined
-      ? this._devtools
-      : __DEV__ || __VUE_PROD_DEVTOOLS__
+    const devtools = __DEV__ || __VUE_PROD_DEVTOOLS__
 
     if (devtools) {
       useDevtools(app, this)
