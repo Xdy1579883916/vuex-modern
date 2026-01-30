@@ -1,0 +1,51 @@
+{
+  "name": "vuex-modern",
+  "type": "module",
+  "version": "0.1.3",
+  "description": "Modern Vuex 4 implementation for Vue 3 powered by Composition API. 100% API compatible, lightweight, and full DevTools support.",
+  "author": "1579883916@qq.com",
+  "license": "MIT",
+  "homepage": "https://github.com/Xdy1579883916/vuex-modern#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Xdy1579883916/vuex-modern.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Xdy1579883916/vuex-modern/issues"
+  },
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest --environment happy-dom",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^7.2.0",
+    "@types/node": "^25.0.3",
+    "bumpp": "^10.3.2",
+    "eslint": "^9.39.2",
+    "happy-dom": "^20.4.0",
+    "tsdown": "^0.18.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  },
+  "dependencies": {
+    "@vue/devtools-api": "^8.0.5"
+  },
+  "peerDependencies": {
+    "vue": "^3.0.0"
+  }
+}
