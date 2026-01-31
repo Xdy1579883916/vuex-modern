@@ -48,9 +48,23 @@ export class ModuleCollection<R> {
   unregister(path: string[]): void {
     const parent = this.get(path.slice(0, -1))
     const key = path[path.length - 1]
-    if (parent && parent.hasChild(key)) {
-      parent.removeChild(key)
+    const child = parent && parent.getChild(key)
+
+    if (!child) {
+      if (__DEV__) {
+        console.warn(
+          `[vuex] trying to unregister module '${key}', which is `
+          + `not registered`,
+        )
+      }
+      return
     }
+
+    if (!child.runtime) {
+      return
+    }
+
+    parent!.removeChild(key)
   }
 
   isRegistered(path: string[]): boolean {
@@ -69,7 +83,12 @@ export class ModuleCollection<R> {
     if (rawModule.modules) {
       forEachValue(rawModule.modules, (rawChildModule, key) => {
         if (!module.hasChild(key)) {
-          this.register(path.concat(key), rawChildModule, true)
+          if (__DEV__) {
+            console.warn(
+              `[vuex] trying to add a new module '${key}' on hot reloading, `
+              + 'manual reload is needed',
+            )
+          }
           return
         }
         this.updateRecursively(path.concat(key), rawChildModule)

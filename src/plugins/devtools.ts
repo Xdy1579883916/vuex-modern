@@ -1,244 +1,292 @@
 import type { Store } from '../lib/store'
 import { setupDevtoolsPlugin } from '@vue/devtools-api'
-import { forEachValue } from '../lib/util'
 
-const LAW_RAW_LABEL = 'Raw'
+const LABEL_VUEX_BINDINGS = 'vuex bindings'
+const MUTATIONS_LAYER_ID = 'vuex:mutations'
+const ACTIONS_LAYER_ID = 'vuex:actions'
 const INSPECTOR_ID = 'vuex'
-const TIMELINE_LAYER_ID = 'vuex:mutations'
+
+let actionId = 0
 
 export function useDevtools(app: any, store: Store<any>) {
   setupDevtoolsPlugin(
     {
       id: 'org.vuejs.vuex',
       app,
-      label: 'Vuex',
-      homepage: 'https://next.vuex.vuejs.org/',
-      logo: 'https://vuejs.org/images/logo.png',
-      packageName: 'vuex-modern',
-      componentStateTypes: [LAW_RAW_LABEL],
+      label: 'Vuex Modern',
+      homepage: 'https://github.com/Xdy1579883916/vuex-modern',
+      logo: 'https://vuejs.org/images/icons/favicon-96x96.png',
+      packageName: 'vuex',
+      componentStateTypes: [LABEL_VUEX_BINDINGS],
     },
     (api) => {
       api.addTimelineLayer({
-        id: TIMELINE_LAYER_ID,
+        id: MUTATIONS_LAYER_ID,
         label: 'Vuex Mutations',
-        color: 0x8759D5, // purple-ish
+        color: COLOR_LIME_500,
+      })
+
+      api.addTimelineLayer({
+        id: ACTIONS_LAYER_ID,
+        label: 'Vuex Actions',
+        color: COLOR_LIME_500,
       })
 
       api.addInspector({
         id: INSPECTOR_ID,
-        label: 'Vuex',
+        label: 'Vuex Modern',
         icon: 'storage',
         treeFilterPlaceholder: 'Filter stores...',
       })
 
       api.on.getInspectorTree((payload) => {
-        if (payload.inspectorId === INSPECTOR_ID) {
-          const rootNodes: any[] = []
-
-          function formatModule(module: any, path: string, label: string) {
-            const node: any = {
-              id: path,
-              label,
-              children: [],
-              tags: path === 'root'
-                ? [{
-                    label: 'root',
-                    textColor: 0xFFFFFF,
-                    backgroundColor: 0x8759D5,
-                  }]
-                : module.namespaced
-                  ? [{
-                      label: 'namespaced',
-                      textColor: 0xFFFFFF,
-                      backgroundColor: 0x006600,
-                    }]
-                  : [],
-            }
-
-            if (module._children) {
-              forEachValue(module._children, (childModule, key) => {
-                node.children.push(formatModule(childModule, path === 'root' ? key : `${path}/${key}`, key))
-              })
-            }
-            return node
+        if (payload.app === app && payload.inspectorId === INSPECTOR_ID) {
+          if (payload.filter) {
+            const nodes: any[] = []
+            flattenStoreForInspectorTree(nodes, store._modules.root, payload.filter, '')
+            payload.rootNodes = nodes
+          } else {
+            payload.rootNodes = [
+              formatStoreForInspectorTree(store._modules.root, ''),
+            ]
           }
-
-          if (store._modules.root) {
-            rootNodes.push(formatModule(store._modules.root, 'root', 'Root'))
-          }
-
-          payload.rootNodes = rootNodes
         }
       })
 
       api.on.getInspectorState((payload) => {
-        if (payload.inspectorId === INSPECTOR_ID) {
-          const nodeId = payload.nodeId
+        if (payload.app === app && payload.inspectorId === INSPECTOR_ID) {
+          const modulePath = payload.nodeId
+          const pathArray = modulePath === 'root' ? [] : modulePath.split('/').filter(Boolean)
+          const module = store._modules.get(pathArray)
 
-          // Helper to resolve module state by path
-          // nodeId is like 'root', 'cart', 'cart/items'
-          // Store state structure is object tree.
-          // Root state is store.state.
+          if (module) {
+            // Simulate makeLocalGetters logic
+            const namespace = store._modules.getNamespace(pathArray)
+            const localGetters = getModuleGetters(store, namespace)
 
-          let moduleState = store.state
-
-          if (nodeId !== 'root') {
-            // For modules, we need to traverse the state tree
-            // But wait, store.state is the root state object.
-            // If I have module 'cart', state is store.state.cart
-            const path = nodeId.split('/')
-            for (const key of path) {
-              if (moduleState && moduleState[key]) {
-                moduleState = moduleState[key]
-              } else {
-                // Fallback or error?
-                // If module has no state, moduleState might be undefined if we traverse.
-                // But in Vuex 4, module state is always nested in root state.
-              }
-            }
-
-            // Getters for module?
-            // Vuex getters are global in `store.getters`.
-            // Namespaced getters are 'cart/total'.
-            // We can filter global getters by prefix.
-
-            // We need to know if the module is namespaced to filter getters correctly?
-            // Or we just show all getters that START with this path?
-            // If module 'a' is not namespaced, its getters are global.
-            // We can check `store._modules.get(path.split('/'))` to check namespaced.
-            // But getting module by path requires raw path array.
-            // nodeId 'a/b' might correspond to module ['a', 'b'].
-
-            const rawPath = nodeId.split('/')
-
-            // Filter getters
-            // If module is namespaced, we filter by namespace prefix.
-            // If not, we might not be able to distinguish easily without checking raw definition.
-            // For simplification, let's just show relevant getters if namespaced.
-
-            const namespace = store._modules.getNamespace(rawPath)
-            if (namespace) {
-              const filteredGetters: any = {}
-              Object.keys(store.getters).forEach((key) => {
-                if (key.startsWith(namespace)) {
-                  filteredGetters[key] = store.getters[key]
-                }
-              })
-              // We can use this filtered list.
-              // But usually we want to show them with short names?
-              // Vuex Devtools usually shows full keys.
-            }
-          }
-
-          payload.state = {
-            state: [
-              {
-                key: nodeId === 'root' ? 'root' : nodeId,
-                value: moduleState,
-                editable: true,
-              },
-            ],
-            getters: Object.keys(store.getters).filter((key) => {
-              if (nodeId === 'root')
-                return true // Show all in root? Or maybe none?
-              // If we are in a module, show only related getters
-              const rawPath = nodeId.split('/')
-              const namespace = store._modules.getNamespace(rawPath)
-              if (namespace)
-                return key.startsWith(namespace)
-              return false
-            }).map(key => ({
-              key,
-              value: store.getters[key],
-              editable: false,
-              objectType: 'computed',
-            })),
+            payload.state = formatStoreForInspectorState(
+              module,
+              store, // Pass store
+              localGetters,
+              modulePath,
+            )
           }
         }
       })
 
       api.on.editInspectorState((payload) => {
-        if (payload.inspectorId === INSPECTOR_ID) {
-          const path = payload.path
-          // payload.path is relative to the `state` object we sent.
-          // We sent `key: nodeId`.
-          // So path[0] is `nodeId`.
-
-          if (path.length > 1) {
-            const statePath = path.slice(1)
-            const nodeId = payload.nodeId
-
-            store._withCommit(() => {
-              const value = payload.state.value
-              const lastKey = statePath[statePath.length - 1]
-              const targetPath = statePath.slice(0, -1)
-
-              // Resolve the start object (the module state)
-              let target = store.state
-              if (nodeId !== 'root') {
-                const modulePath = nodeId.split('/')
-                for (const key of modulePath) {
-                  target = target[key]
-                }
-              }
-
-              // Now traverse within the module state
-              for (const key of targetPath) {
-                target = target[key]
-              }
-              target[lastKey] = value
-            })
+        if (payload.app === app && payload.inspectorId === INSPECTOR_ID) {
+          const modulePath = payload.nodeId
+          let path = payload.path
+          if (modulePath !== 'root') {
+            path = [...modulePath.split('/').filter(Boolean), ...path]
           }
+          store._withCommit(() => {
+            payload.set(store._state.data, path, payload.state.value)
+          })
         }
       })
 
       store.subscribe((mutation: any, state: any) => {
+        const data: any = {}
+
+        if (mutation.payload) {
+          data.payload = mutation.payload
+        }
+
+        data.state = state
+
+        api.notifyComponentUpdate()
+        api.sendInspectorTree(INSPECTOR_ID)
+        api.sendInspectorState(INSPECTOR_ID)
+
         api.addTimelineEvent({
-          layerId: TIMELINE_LAYER_ID,
+          layerId: MUTATIONS_LAYER_ID,
           event: {
             time: Date.now(),
             title: mutation.type,
-            subtitle: mutation.type,
-            data: {
-              mutation,
-              state,
-            },
-            groupId: mutation.type,
+            data,
           },
         })
-
-        // Notify inspector to update
-        api.sendInspectorState(INSPECTOR_ID)
-        api.sendInspectorTree(INSPECTOR_ID)
-      }, { prepend: true })
+      })
 
       store.subscribeAction({
         before: (action: any, state: any) => {
-          api.addTimelineEvent({
-            layerId: TIMELINE_LAYER_ID,
-            event: {
+          const data: any = {}
+          if (action.payload) {
+            data.payload = action.payload
+          }
+          action._id = actionId++
+          action._time = Date.now()
+          data.state = state
 
-              time: Date.now(),
+          api.addTimelineEvent({
+            layerId: ACTIONS_LAYER_ID,
+            event: {
+              time: action._time,
               title: action.type,
+              groupId: action._id,
               subtitle: 'start',
-              data: { action, state },
-              groupId: action.type,
+              data,
             },
           })
         },
         after: (action: any, state: any) => {
+          const data: any = {}
+          const duration = Date.now() - action._time
+          data.duration = {
+            _custom: {
+              type: 'duration',
+              display: `${duration}ms`,
+              tooltip: 'Action duration',
+              value: duration,
+            },
+          }
+          if (action.payload) {
+            data.payload = action.payload
+          }
+          data.state = state
+
           api.addTimelineEvent({
-            layerId: TIMELINE_LAYER_ID,
+            layerId: ACTIONS_LAYER_ID,
             event: {
               time: Date.now(),
               title: action.type,
+              groupId: action._id,
               subtitle: 'end',
-              data: { action, state },
-              groupId: action.type,
+              data,
             },
           })
         },
-      }, { prepend: true })
+      })
     },
   )
+}
+
+// extracted from tailwind palette
+const COLOR_LIME_500 = 0x84CC16
+const COLOR_DARK = 0x666666
+const COLOR_WHITE = 0xFFFFFF
+
+const TAG_NAMESPACED = {
+  label: 'namespaced',
+  textColor: COLOR_WHITE,
+  backgroundColor: COLOR_DARK,
+}
+
+function extractNameFromPath(path: string) {
+  return path && path !== 'root' ? path.split('/').slice(-2, -1)[0] : 'Root'
+}
+
+function formatStoreForInspectorTree(module: any, path: string): any {
+  return {
+    id: path || 'root',
+    // all modules end with a `/`, we want the last segment only
+    // cart/ -> cart
+    // nested/cart/ -> cart
+    label: extractNameFromPath(path),
+    tags: module.namespaced ? [TAG_NAMESPACED] : [],
+    children: Object.keys(module._children).map(moduleName =>
+      formatStoreForInspectorTree(
+        module._children[moduleName],
+        `${path + moduleName}/`,
+      ),
+    ),
+  }
+}
+
+function flattenStoreForInspectorTree(result: any[], module: any, filter: string, path: string) {
+  if (path.includes(filter)) {
+    result.push({
+      id: path || 'root',
+      label: path.endsWith('/') ? path.slice(0, path.length - 1) : path || 'Root',
+      tags: module.namespaced ? [TAG_NAMESPACED] : [],
+    })
+  }
+  Object.keys(module._children).forEach((moduleName) => {
+    flattenStoreForInspectorTree(result, module._children[moduleName], filter, `${path + moduleName}/`)
+  })
+}
+
+function formatStoreForInspectorState(module: any, store: Store<any>, getters: any, path: string): any {
+  const gettersKeys = Object.keys(getters)
+  // Resolve real state from store.state using path
+  // path is 'root', 'cart', 'nested/cart' etc.
+  let realState = store.state
+  if (path !== 'root') {
+    const keys = path.split('/').filter(Boolean)
+    for (const key of keys) {
+      if (realState)
+        realState = realState[key]
+    }
+  }
+
+  const storeState: any = {
+    state: Object.keys(realState || module.state).map(key => ({ // Fallback to module.state if traversal fails, but realState should be correct
+      key,
+      editable: true,
+      value: (realState || module.state)[key],
+    })),
+  }
+
+  if (gettersKeys.length) {
+    const tree = PcToObjectTree(getters)
+    storeState.getters = Object.keys(tree).map(key => ({
+      key: key.endsWith('/') ? extractNameFromPath(key) : key,
+      editable: false,
+      value: canThrow(() => tree[key]),
+    }))
+  }
+
+  return storeState
+}
+
+function PcToObjectTree(getters: any) {
+  const result: any = {}
+  Object.keys(getters).forEach((key) => {
+    const path = key.split('/')
+    if (path.length > 1) {
+      let target = result
+      const leafKey = path.pop()!
+      path.forEach((p) => {
+        if (!target[p]) {
+          target[p] = {
+            _custom: {
+              value: {},
+              display: p,
+              tooltip: 'Module',
+              abstract: true,
+            },
+          }
+        }
+        target = target[p]._custom.value
+      })
+      target[leafKey] = canThrow(() => getters[key])
+    } else {
+      result[key] = canThrow(() => getters[key])
+    }
+  })
+  return result
+}
+
+function canThrow(cb: () => any) {
+  try {
+    return cb()
+  } catch (e) {
+    return e
+  }
+}
+
+function getModuleGetters(store: Store<any>, namespace: string) {
+  if (!namespace)
+    return store.getters
+  const getters: any = {}
+  const len = namespace.length
+  Object.keys(store.getters).forEach((key) => {
+    if (key.startsWith(namespace)) {
+      const localKey = key.slice(len)
+      getters[localKey] = store.getters[key]
+    }
+  })
+  return getters
 }

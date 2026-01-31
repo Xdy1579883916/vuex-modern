@@ -14,8 +14,5 @@ export default defineConfig({
   },
   external: [
     ...Object.keys(pkg.peerDependencies || {}),
-    // /^vue/,
-    // ...Object.keys(pkg.dependencies || {}),
-    // /^@vue\/devtools-api/,
   ],
 })

@@ -55,20 +55,32 @@ describe('store', () => {
     })
     expect(() => {
       store.commit(undefined as any, 2)
-    }).not.toThrow()
-    // Vuex 4 throws, but our implementation might just log error or return?
-    // Let's check our implementation.
-    // Our code:
-    // if (!entry) { console.error(...); return }
-    // If type is undefined, typeStr is "undefined".
-    // If mutations['undefined'] exists, it runs.
+    }).toThrowError(/expects string as the type, but found undefined/)
+    expect(store.state.a).toBe(1)
+  })
 
-    // Official Vuex throws: /expects string as the type, but found undefined/
-    // We didn't implement this check yet.
-    // Let's adjust expectation to match our current implementation (loose) or fix implementation.
-    // For now, let's keep it loose or fix it later.
-    // Actually the test expects it to THROW.
-    // expect(store.state.a).toBe(1)
+  it('asserts dispatched type', () => {
+    const store = new Vuex.Store({
+      state: {
+        a: 1,
+      },
+      mutations: {
+        [TEST](state: any, n: any) {
+          state.a += n
+        },
+      },
+      actions: {
+        // Maybe registered with undefined type accidentally
+        // if the user has typo in a constant type
+        undefined({ commit }: any, n: any) {
+          commit(TEST, n)
+        },
+      },
+    })
+    expect(() => {
+      store.dispatch(undefined as any, 2)
+    }).toThrowError(/expects string as the type, but found undefined/)
+    expect(store.state.a).toBe(1)
   })
 
   it('dispatching actions, sync', () => {
@@ -171,33 +183,30 @@ describe('store', () => {
     expect(store.state.a).toBe(5)
   })
 
-  // Skip devtoolHook test as we implementation differs slightly
-  /*
-  it('detecting action Promise errors', done => {
+  it('detecting action Promise errors', async () => {
     const store = new Vuex.Store({
       actions: {
-        [TEST] () {
+        [TEST]() {
           return new Promise((resolve, reject) => {
             reject('no')
           })
-        }
-      }
+        },
+      },
     })
-    const spy = jest.fn()
-    store._devtoolHook = {
-      emit: spy
+    const spy = vi.fn()
+    ;(store as any)._devtoolHook = {
+      emit: spy,
     }
-    const thenSpy = jest.fn()
-    store.dispatch(TEST)
-      .then(thenSpy)
-      .catch(err => {
-        expect(thenSpy).not.toHaveBeenCalled()
-        expect(err).toBe('no')
-        expect(spy).toHaveBeenCalledWith('vuex:error', 'no')
-        done()
-      })
+    const thenSpy = vi.fn()
+    try {
+      await store.dispatch(TEST)
+        .then(thenSpy)
+    } catch (err) {
+      expect(thenSpy).not.toHaveBeenCalled()
+      expect(err).toBe('no')
+      expect(spy).toHaveBeenCalledWith('vuex:error', 'no')
+    }
   })
-  */
 
   it('getters', () => {
     const store = new Vuex.Store({
@@ -367,6 +376,33 @@ describe('store', () => {
       expect(spy).toHaveBeenCalled()
     })
 
-    // Skipped complex watch test for now
+    it('watch: getter function has access to store\'s getters object', async () => {
+      const store = new Vuex.Store({
+        state: {
+          count: 0,
+        },
+        mutations: {
+          [TEST]: (state: any) => state.count++,
+        },
+        getters: {
+          getCount: (state: any) => state.count,
+        },
+      })
+
+      const getter = function getter(state: any, getters: any) {
+        return state.count
+      }
+      const spy = vi.spyOn({ getter }, 'getter')
+      const spyCb = vi.fn()
+
+      store.watch(spy as any, spyCb)
+
+      await nextTick()
+      store.commit(TEST)
+      expect(store.state.count).toBe(1)
+
+      await nextTick()
+      expect(spy).toHaveBeenCalledWith(store.state, store.getters)
+    })
   }
 })

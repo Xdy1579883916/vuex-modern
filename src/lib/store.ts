@@ -53,9 +53,9 @@ export class Store<S = any> {
   public strict: boolean
   public _devtools?: boolean
 
-  public _state: any
+  public _state: { data: any }
   public _committing: boolean = false
-  public getters: any = {}
+  public getters: any
 
   constructor(options: StoreOptions<S> = {}) {
     const {
@@ -67,6 +67,7 @@ export class Store<S = any> {
     this._modules = new ModuleCollection(options)
     this.strict = strict
     this._devtools = devtools
+    this.getters = reactive({})
 
     // bind commit and dispatch to self
     const store = this
@@ -86,6 +87,7 @@ export class Store<S = any> {
 
     // initialize the store state, which is responsible for the reactivity
     // (also registers _wrappedGetters as computed properties)
+    this._state = reactive({ data: state })
     resetStoreState(this, state)
 
     // apply plugins
@@ -93,11 +95,11 @@ export class Store<S = any> {
   }
 
   get state(): S {
-    return this._state
+    return this._state.data
   }
 
   set state(v: S) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (__DEV__) {
       console.warn(`[vuex] use store.replaceState() to explicit replace store state.`)
     }
   }
@@ -125,9 +127,13 @@ export class Store<S = any> {
       typeStr = type as string
     }
 
+    if (__DEV__) {
+      assert(typeof typeStr === 'string', `expects string as the type, but found ${typeof typeStr}`)
+    }
+
     const entry = this._mutations[typeStr]
     if (!entry) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (__DEV__) {
         console.error(`[vuex] unknown mutation type: ${typeStr}`)
       }
       return
@@ -152,9 +158,13 @@ export class Store<S = any> {
       typeStr = type as string
     }
 
+    if (__DEV__) {
+      assert(typeof typeStr === 'string', `expects string as the type, but found ${typeof typeStr}`)
+    }
+
     const entry = this._actions[typeStr]
     if (!entry) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (__DEV__) {
         console.error(`[vuex] unknown action type: ${typeStr}`)
       }
       return Promise.resolve()
@@ -166,7 +176,7 @@ export class Store<S = any> {
         .filter(sub => sub.before)
         .forEach(sub => sub.before?.({ type: typeStr, payload }, this.state))
     } catch (e) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (__DEV__) {
         console.warn(`[vuex] error in before action subscribers: `)
         console.error(e)
       }
@@ -183,7 +193,7 @@ export class Store<S = any> {
             .filter(sub => sub.after)
             .forEach(sub => sub.after?.({ type: typeStr, payload }, this.state))
         } catch (e) {
-          if (process.env.NODE_ENV !== 'production') {
+          if (__DEV__) {
             console.warn(`[vuex] error in after action subscribers: `)
             console.error(e)
           }
@@ -195,10 +205,13 @@ export class Store<S = any> {
             .filter(sub => sub.error)
             .forEach(sub => sub.error?.({ type: typeStr, payload }, this.state, error))
         } catch (e) {
-          if (process.env.NODE_ENV !== 'production') {
+          if (__DEV__) {
             console.warn(`[vuex] error in error action subscribers: `)
             console.error(e)
           }
+        }
+        if (__DEV__ && (this as any)._devtoolHook) {
+          (this as any)._devtoolHook.emit('vuex:error', error)
         }
         reject(error)
       })
@@ -220,7 +233,7 @@ export class Store<S = any> {
 
   replaceState(state: S) {
     this._withCommit(() => {
-      this._state = reactive(state as any)
+      this._state.data = state
       resetStoreState(this, state)
     })
   }
@@ -229,7 +242,7 @@ export class Store<S = any> {
     if (typeof path === 'string')
       path = [path]
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (__DEV__) {
       assert(Array.isArray(path), `module path must be a string or an Array.`)
       assert(path.length > 0, 'cannot register the root module by using registerModule.')
     }
@@ -244,7 +257,7 @@ export class Store<S = any> {
     if (typeof path === 'string')
       path = [path]
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (__DEV__) {
       assert(Array.isArray(path), `module path must be a string or an Array.`)
     }
 
@@ -260,7 +273,7 @@ export class Store<S = any> {
     if (typeof path === 'string')
       path = [path]
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (__DEV__) {
       assert(Array.isArray(path), `module path must be a string or an Array.`)
     }
 
@@ -293,15 +306,18 @@ function genericSubscribe(fn: Function | object, subs: any[], options?: any) {
 }
 
 function resetStoreState(store: Store<any>, state: any, hot = false) {
-  const oldState = store._state
+  const oldState = store._state.data
   const oldScope = store._scope
 
   // bind store public getters
-  store.getters = {}
+  // store.getters = {} // Don't replace the object, clear it
+  for (const key in store.getters) {
+    delete store.getters[key]
+  }
   store._scope = effectScope(true)
 
   // We make the state reactive
-  store._state = reactive(state)
+  // store._state = reactive(state) // Removed: state is already inside reactive store._state.data
 
   // We need to make sure internal modules state references are updated if we replaced the state object?
   // In `installModule`, we assigned `parentState[moduleName] = module.state`.
@@ -315,11 +331,8 @@ function resetStoreState(store: Store<any>, state: any, hot = false) {
   store._scope.run(() => {
     forEachValue(store._wrappedGetters, (fn, key) => {
       // use computed for getters
-      const calculated = computed(() => fn(store._state))
-      Object.defineProperty(store.getters, key, {
-        get: () => calculated.value,
-        enumerable: true,
-      })
+      const calculated = computed(() => fn(store._state.data))
+      store.getters[key] = calculated
     })
   })
 
@@ -342,7 +355,7 @@ function installModule(store: Store<any>, rootState: any, path: string[], module
 
   // register in namespace map
   if (module.namespaced) {
-    if (store._modulesNamespaceMap[namespace] && process.env.NODE_ENV !== 'production') {
+    if (store._modulesNamespaceMap[namespace] && __DEV__) {
       console.error(`[vuex] duplicate namespace ${namespace} for the namespaced module ${path.join('/')}`)
     }
     store._modulesNamespaceMap[namespace] = module
@@ -366,6 +379,9 @@ function installModule(store: Store<any>, rootState: any, path: string[], module
   const local = module.context = makeLocalContext(store, namespace, path) as any
 
   module.forEachMutation((mutation, key) => {
+    if (__DEV__) {
+      assert(typeof mutation === 'function', `mutations should be function but "mutations.${key}"${path.length > 0 ? ` in module "${path.join('.')}"` : ''} is ${JSON.stringify(mutation)}`)
+    }
     const namespacedType = namespace + key
     registerMutation(store, namespacedType, mutation, local)
   })
@@ -373,10 +389,16 @@ function installModule(store: Store<any>, rootState: any, path: string[], module
   module.forEachAction((action, key) => {
     const type = (action as any).root ? key : namespace + key
     const handler = (action as any).handler || action
+    if (__DEV__) {
+      assert(typeof handler === 'function', `actions should be function or object with "handler" function but "actions.${key}"${path.length > 0 ? ` in module "${path.join('.')}"` : ''} is ${JSON.stringify(action)}`)
+    }
     registerAction(store, type, handler, local)
   })
 
   module.forEachGetter((getter, key) => {
+    if (__DEV__) {
+      assert(typeof getter === 'function', `getters should be function but "getters.${key}"${path.length > 0 ? ` in module "${path.join('.')}"` : ''} is ${JSON.stringify(getter)}`)
+    }
     const namespacedType = namespace + key
     registerGetter(store, namespacedType, getter, local)
   })
@@ -399,7 +421,7 @@ function makeLocalContext(store: Store<any>, namespace: string, path: string[]) 
 
           if (!options || !options.root) {
             type = namespace + type
-            if (process.env.NODE_ENV !== 'production' && !store._actions[type]) {
+            if (__DEV__ && !store._actions[type]) {
               console.error(`[vuex] unknown local action type: ${args.type}, global type: ${type}`)
               return
             }
@@ -417,7 +439,7 @@ function makeLocalContext(store: Store<any>, namespace: string, path: string[]) 
 
           if (!options || !options.root) {
             type = namespace + type
-            if (process.env.NODE_ENV !== 'production' && !store._mutations[type]) {
+            if (__DEV__ && !store._mutations[type]) {
               console.error(`[vuex] unknown local mutation type: ${args.type}, global type: ${type}`)
               return
             }
@@ -488,7 +510,7 @@ function registerAction(store: Store<any>, type: string, handler: Function, loca
 
 function registerGetter(store: Store<any>, type: string, rawGetter: Function, local: any) {
   if (store._wrappedGetters[type]) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (__DEV__) {
       console.error(`[vuex] duplicate getter key: ${type}`)
     }
     return
@@ -505,7 +527,7 @@ function registerGetter(store: Store<any>, type: string, rawGetter: Function, lo
 
 function enableStrictMode(store: Store<any>) {
   watch(() => store._state, () => {
-    if (process.env.NODE_ENV !== 'production' && !store._committing) {
+    if (__DEV__ && !store._committing) {
       console.error(`[vuex] do not mutate vuex store state outside mutation handlers.`)
     }
   }, { deep: true, flush: 'sync' })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createStore, getField, mapFields, updateField } from '../../src/index'
+import { createHelpers, createStore, getField, mapFields, mapMultiRowFields, updateField } from '../../src/index'
 import { mount } from '../helpers'
 
 describe('mapFields', () => {
@@ -53,20 +53,9 @@ describe('mapFields', () => {
       },
     }) as any
 
-    expect(vm['user.name']).toBe('John') // Wait, mapFields array uses path as key?
+    expect(vm.name).toBe('John')
 
-    // mapFields(['user.name']) creates computed property "user.name" which is invalid JS identifier for this access?
-    // Actually standard mapFields behavior:
-    // If array ['field'], key is 'field'.
-    // If array ['a.b'], key is 'a.b'?
-    // vuex-map-fields documentation says:
-    // mapFields(['user.firstName']) -> computed['user.firstName']? No, usually not.
-    // Usually you use object syntax for renaming: mapFields({ firstName: 'user.firstName' })
-    // Let's check array behavior implementation in my code:
-    // fields.map(key => [key, key]) -> key is 'user.name'.
-    // So vm['user.name'] is correct.
-
-    vm['user.name'] = 'Doe'
+    vm.name = 'Doe'
     expect(store.state.user.name).toBe('Doe')
   })
 
@@ -125,5 +114,129 @@ describe('mapFields', () => {
     expect(vm.field).toBe('foo')
     vm.field = 'bar'
     expect((store as any).state.foo.field).toBe('bar')
+  })
+
+  it('should work with namespaced modules (slash)', () => {
+    const store = createStore({
+      modules: {
+        foo: {
+          namespaced: true,
+          state: {
+            field: 'foo',
+          },
+          getters: {
+            getField,
+          },
+          mutations: {
+            updateField,
+          },
+        },
+      },
+    })
+
+    const vm = mount(store, {
+      computed: {
+        ...mapFields('foo/', ['field']),
+      },
+    }) as any
+
+    expect(vm.field).toBe('foo')
+    vm.field = 'bar'
+    expect((store as any).state.foo.field).toBe('bar')
+  })
+
+  it('should work with multi-row fields', () => {
+    const store = createStore({
+      state: {
+        users: [
+          { name: 'John', email: 'john@example.com' },
+          { name: 'Jane', email: 'jane@example.com' },
+        ],
+      },
+      getters: {
+        getField,
+      },
+      mutations: {
+        updateField,
+      },
+    })
+
+    const vm = mount(store, {
+      computed: {
+        ...mapMultiRowFields(['users']),
+      },
+    }) as any
+
+    expect(vm.users[0].name).toBe('John')
+    expect(vm.users[1].email).toBe('jane@example.com')
+
+    vm.users[0].name = 'Doe'
+    expect(store.state.users[0].name).toBe('Doe')
+
+    vm.users[1].email = 'doe@example.com'
+    expect(store.state.users[1].email).toBe('doe@example.com')
+  })
+
+  it('should work with createHelpers', () => {
+    const { mapFields: mapFieldsCustom } = createHelpers({
+      getterType: 'getFoo',
+      mutationType: 'updateFoo',
+    })
+
+    const store = createStore({
+      state: {
+        foo: 'bar',
+      },
+      getters: {
+        getFoo: getField,
+      },
+      mutations: {
+        updateFoo: updateField,
+      },
+    })
+
+    const vm = mount(store, {
+      computed: {
+        ...mapFieldsCustom(['foo']),
+      },
+    }) as any
+
+    expect(vm.foo).toBe('bar')
+    vm.foo = 'baz'
+    expect(store.state.foo).toBe('baz')
+  })
+
+  it('should work with createHelpers and namespace', () => {
+    const { mapFields: mapFieldsCustom } = createHelpers({
+      getterType: 'getFoo',
+      mutationType: 'updateFoo',
+    })
+
+    const store = createStore({
+      modules: {
+        foo: {
+          namespaced: true,
+          state: {
+            bar: 'baz',
+          },
+          getters: {
+            getFoo: getField,
+          },
+          mutations: {
+            updateFoo: updateField,
+          },
+        },
+      },
+    })
+
+    const vm = mount(store, {
+      computed: {
+        ...mapFieldsCustom('foo', ['bar']),
+      },
+    }) as any
+
+    expect(vm.bar).toBe('baz')
+    vm.bar = 'qux'
+    expect((store as any).state.foo.bar).toBe('qux')
   })
 })

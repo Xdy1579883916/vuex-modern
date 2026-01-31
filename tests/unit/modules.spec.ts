@@ -791,9 +791,134 @@ describe('modules', () => {
     })
   })
 
-  /*
-  it('action error subscribers', (done) => {
-    // ... complex error handling logic
+  it('action error subscribers', async () => {
+    const beforeSpy = vi.fn()
+    const afterSpy = vi.fn()
+    const errorSpy = vi.fn()
+
+    const error = new Error()
+    const store = new Vuex.Store({
+      actions: {
+        [TEST]: () => Promise.reject(error),
+      },
+      plugins: [
+        (store: any) => {
+          store.subscribeAction({
+            before: beforeSpy,
+            after: afterSpy,
+            error: errorSpy,
+          })
+        },
+      ],
+    })
+    try {
+      await store.dispatch(TEST, 2)
+    } catch (e) {
+      expect(beforeSpy).toHaveBeenCalledWith(
+        { type: TEST, payload: 2 },
+        store.state,
+      )
+      expect(afterSpy).not.toHaveBeenCalled()
+      await nextTick()
+      expect(afterSpy).not.toHaveBeenCalledWith(
+        { type: TEST, payload: 2 },
+        store.state,
+      )
+      expect(errorSpy).toHaveBeenCalledWith(
+        { type: TEST, payload: 2 },
+        store.state,
+        error,
+      )
+    }
   })
-  */
+
+  it('asserts a mutation should be a function', () => {
+    expect(() => {
+      new Vuex.Store({
+        mutations: {
+          test: null as any,
+        },
+      })
+    }).toThrowError(
+      /mutations should be function but "mutations\.test" is null/,
+    )
+
+    expect(() => {
+      new Vuex.Store({
+        modules: {
+          foo: {
+            modules: {
+              bar: {
+                mutations: {
+                  test: 123 as any,
+                },
+              },
+            },
+          },
+        },
+      })
+    }).toThrowError(
+      /mutations should be function but "mutations\.test" in module "foo\.bar" is 123/,
+    )
+  })
+
+  it('asserts an action should be a function', () => {
+    expect(() => {
+      new Vuex.Store({
+        actions: {
+          test: 'test' as any,
+        },
+      })
+    }).toThrowError(
+      /actions should be function or object with "handler" function but "actions\.test" is "test"/,
+    )
+
+    expect(() => {
+      new Vuex.Store({
+        modules: {
+          foo: {
+            modules: {
+              bar: {
+                actions: {
+                  test: 'error' as any,
+                },
+              },
+            },
+          },
+        },
+      })
+    }).toThrowError(
+      /actions should be function or object with "handler" function but "actions\.test" in module "foo\.bar" is "error"/,
+    )
+  })
+
+  it('asserts a getter should be a function', () => {
+    expect(() => {
+      new Vuex.Store({
+        getters: {
+          test: undefined as any,
+        },
+      })
+    }).toThrowError(
+      /getters should be function but "getters\.test" is undefined/,
+    )
+
+    expect(() => {
+      new Vuex.Store({
+        modules: {
+          foo: {
+            modules: {
+              bar: {
+                getters: {
+                  test: true as any,
+                },
+              },
+            },
+          },
+        },
+      })
+    }).toThrowError(
+      /getters should be function but "getters\.test" in module "foo\.bar" is true/,
+    )
+  })
 })
